@@ -14,7 +14,7 @@ For Every Users (Beginner): GitHub上で公開される様々な「機能モジ�
 🏗 プラットフォームとしての特徴
 Immutable Base: Liveモードによるクリーンな動作。何度再起動しても、常に最適な状態からスタートします。
 
-Modular Design: croncmd.txt を介したタスク管理など、機能の追加・変更が容易な設計を採用しています。
+Modular Design: croncmd.txt を介したタスク管理など、機能の追加・変更が容易な設計を採用しています。 
 
 Eco-System: 将来的に、世界中の開発者が作った「freeBox用モジュール」を組み合わせて、あなただけの専用ボックスを作れる世界を目指します。
 
