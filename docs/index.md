@@ -77,3 +77,10 @@ freeBox は、現在次のような段階にあります。
 
 これらの情報は、GitHub 上で順次公開・更新していきます。
 
+---
+
+## 関連ドキュメント
+
+- [freeBox ネーミング検討](naming.html)
+- [freeBox 実装仕様（hsBox1.3 向け）](specification/)
+
