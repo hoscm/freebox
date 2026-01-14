@@ -1,5 +1,3 @@
-[← freeBox トップへ戻る](/freebox/)
-
 # freeBox 実装仕様（hsBox1.3 向け）
 
 このドキュメントでは、  
