@@ -1,3 +1,5 @@
+[← freeBox トップへ戻る](/freebox/)
+
 # freeBox 実装仕様（hsBox1.3 向け）
 
 このドキュメントでは、  
@@ -111,4 +113,6 @@ freeBox の内部構成要素には次のような表記ルールを想定しま
 - 他の hsBox バージョンとの互換性設計
 
 これらは順次 GitHub Pages で公開・更新していきます。
+---
+[← freeBox トップへ戻る](/freebox/)
 
