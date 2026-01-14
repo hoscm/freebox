@@ -4,13 +4,13 @@
 freeBox を hsBox1.3 の環境上で *実際にどのように構成・動作させるか* を整理した仕様を示します。
 
 本仕様は 2026年1月時点での考え方・構成案をまとめたものであり、  
-今後の検討により変更される可能性があります。:contentReference[oaicite:1]{index=1}
+今後の検討により変更される可能性があります。
 
 ---
 
 ## 1. freeBox の構成要素
 
-freeBox は、以下の 3 つの構成要素で成り立つことを想定しています。:contentReference[oaicite:2]{index=2}
+freeBox は、以下の 3 つの構成要素で成り立つことを想定しています。
 
 ---
 
@@ -18,20 +18,20 @@ freeBox は、以下の 3 つの構成要素で成り立つことを想定して
 
 **概要**
 - GitHub から取得する最小単位の機能コンポーネントです。
-- 利用者が追加・削除・選択できる単位として設計されています。:contentReference[oaicite:3]{index=3}
+- 利用者が追加・削除・選択できる単位として設計されています。
 
 **特徴**
 - 各機能は “モジュール単位” で提供される
 - 必要な機能だけを組み合わせて利用可能
 - モジュール名の表記は  
-  `fbx-module-*` の形式を想定しています（例: `fbx-module-weather`）:contentReference[oaicite:4]{index=4}
+  `fbx-module-*` の形式を想定しています（例: `fbx-module-weather`）
 
 ---
 
 ### 1-2. freeBox Loader（フリーボックスローダー）
 
 **概要**
-- freeBox Module を *hsBox 上で扱うための選択・管理機構* です。:contentReference[oaicite:5]{index=5}
+- freeBox Module を *hsBox 上で扱うための選択・管理機構* です。
 
 **主な役割**
 1. freeBox Module の一覧化  
@@ -45,7 +45,7 @@ freeBox は、以下の 3 つの構成要素で成り立つことを想定して
 
 この Loader は、  
 モジュールを「使える形」にする **仕組みとして非常に重要** であり、  
-freeBox の中核的なコンポーネントと位置づけられます。:contentReference[oaicite:6]{index=6}
+freeBox の中核的なコンポーネントと位置づけられます。
 
 ---
 
@@ -53,7 +53,7 @@ freeBox の中核的なコンポーネントと位置づけられます。:conte
 
 **概要**
 - freeBox 基盤となるモジュールです。
-- .hbx 形式で提供されるモジュールとして設計されています。:contentReference[oaicite:7]{index=7}
+- .hbx 形式で提供されるモジュールとして設計されています。
 
 **想定用途**
 - freeBox 全体をまとめる母体  
@@ -62,10 +62,10 @@ freeBox の中核的なコンポーネントと位置づけられます。:conte
 
 **形式**
 - モジュールファイル名: `freebox-base.hbx`
-- 識別 ID: `freebox.base`:contentReference[oaicite:8]{index=8}
+- 識別 ID: `freebox.base`
 
 これは、hsBox のアップデートやパッチ適用の仕組みと同様に  
-**hsBox に導入することで初めて freeBox が動作する**構造になっています。:contentReference[oaicite:9]{index=9}
+**hsBox に導入することで初めて freeBox が動作する**構造になっています。
 
 ---
 
@@ -79,17 +79,17 @@ freeBox の仕組みもこの形式に倣い、
 - モジュール単位で拡張できる
 - 既存のアップデートの仕組みに組み込む
 
-という形で設計されています。:contentReference[oaicite:10]{index=10}
+という形で設計されています。
 
 これは、  
 既存の hsBox アップデートと同じ管理方式を使うことで  
-**整合性のある拡張性を確保する**ための設計です。:contentReference[oaicite:11]{index=11}
+**整合性のある拡張性を確保する**ための設計です。
 
 ---
 
 ## 3. 名前と内部表記
 
-freeBox の内部構成要素には次のような表記ルールを想定します。:contentReference[oaicite:12]{index=12}
+freeBox の内部構成要素には次のような表記ルールを想定します。
 
 - **freeBox Module** → `fbx-module-*`
 - **freeBox Base Module** → ID: `freebox.base`
@@ -97,7 +97,7 @@ freeBox の内部構成要素には次のような表記ルールを想定しま
 
 👉 この命名規則は、  
 モジュール管理や GitHub 連携をスムーズにするための  
-内部仕様として意図されています。:contentReference[oaicite:13]{index=13}
+内部仕様として意図されています。
 
 ---
 
