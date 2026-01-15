@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="900" height="520" viewBox="0 0 900 520"
+     xmlns="http://www.w3.org/2000/svg">
+  <style>
+    .box { fill:#f8fafc; stroke:#0f172a; stroke-width:2; rx:14; ry:14; }
+    .inner { fill:#ffffff; stroke:#334155; stroke-width:1.8; rx:12; ry:12; }
+    .title { font-size:20px; font-weight:bold; fill:#0f172a; }
+    .label { font-size:14px; fill:#0f172a; }
+    .note { font-size:12px; fill:#334155; }
+    .arrow { stroke:#0f172a; stroke-width:2; marker-end:url(#arrowhead); }
+  </style>
+
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7"
+            refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#0f172a"/>
+    </marker>
+  </defs>
+
+  <!-- hsBox -->
+  <rect x="40" y="60" width="820" height="400" class="box"/>
+  <text x="60" y="95" class="title">hsBox（実行環境）</text>
+
+  <!-- freeBox -->
+  <rect x="110" y="120" width="680" height="280" class="inner"/>
+  <text x="130" y="155" class="title">freeBox</text>
+
+  <!-- Loader -->
+  <rect x="160" y="190" width="260" height="120" class="inner"/>
+  <text x="180" y="220" class="label">freeBox Loader</text>
+  <text x="180" y="245" class="note">・起動時に有効化</text>
+  <text x="180" y="265" class="note">・モジュール定義を取得</text>
+  <text x="180" y="285" class="note">・依存関係を解決</text>
+
+  <!-- Module area -->
+  <rect x="470" y="180" width="270" height="150" class="inner"/>
+  <text x="490" y="210" class="label">freeBox Mini Modules</text>
+
+  <rect x="500" y="235" width="90" height="45" class="inner"/>
+  <text x="515" y="263" class="note">Module A</text>
+
+  <rect x="600" y="235" width="90" height="45" class="inner"/>
+  <text x="615" y="263" class="note">Module B</text>
+
+  <rect x="550" y="290" width="90" height="45" class="inner"/>
+  <text x="565" y="318" class="note">Module C</text>
+
+  <!-- Arrows -->
+  <line x1="420" y1="250" x2="470" y2="250" class="arrow"/>
+</svg>
+
