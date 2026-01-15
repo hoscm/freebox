@@ -47,6 +47,8 @@ freeBox は、以下の 3 つの構成要素で成り立つことを想定して
 モジュールを「使える形」にする **仕組みとして非常に重要** であり、  
 freeBox の中核的なコンポーネントと位置づけられます。
 
+![freeBox Loader 構成イメージ](./assets/images/freebox-loader-structure.svg)
+
 ---
 
 ### 1-3. freeBox Base Module（ベースモジュール）
