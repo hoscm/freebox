@@ -1,0 +1,49 @@
+{
+  "schema_version": "1",
+  "updated": "2026-04-17",
+  "_note": "FTテスト版：testmodule*はFT/ST期間限定。正式リリース時はこのノートとtestmodule*エントリを削除すること",
+  "modules": [
+    {
+      "id": "testmodule01",
+      "name": "テストモジュール01（public）",
+      "description": "FT-11 L-04 テスト用：public Deploy 確認",
+      "status": "public",
+      "version": "1.0.0",
+      "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
+      "plugin_file": "testmodule01.py"
+    },
+    {
+      "id": "testmodule02",
+      "name": "テストモジュール02（restricted）",
+      "description": "FT-11 L-05 テスト用：restricted Deploy 確認",
+      "status": "restricted",
+      "version": "1.0.0",
+      "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
+      "plugin_file": "testmodule02.py"
+    },
+    {
+      "id": "testmodule03",
+      "name": "テストモジュール03（private）",
+      "description": "FT-11 L-06 テスト用：private 異常系 Deploy 確認（indexのprivate記載はFT/ST期間のみ許容）",
+      "status": "private",
+      "version": "1.0.0",
+      "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
+      "plugin_file": "testmodule03.py"
+    },
+    {
+      "id": "atomcam2",
+      "name": "ATOMCAM2 キャプチャ",
+      "description": "ATOM Cam 2 の RTSP ストリームから ffmpeg で1フレームをキャプチャし、NAS へ定期保存します。10分間隔で自動実行。",
+      "status": "restricted",
+      "version": "1.0.0",
+      "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
+      "plugin_file": "atomcam2.py",
+      "requires_ffmpeg": true,
+      "hsbox_min_version": "1.03"
+    }
+  ]
+}
