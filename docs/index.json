@@ -11,6 +11,7 @@
       "version": "1.0.0",
       "release_tag": "v1.0.0-test",
       "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
       "plugin_file": "testmodule01.py"
     },
     {
@@ -21,6 +22,7 @@
       "version": "1.0.0",
       "release_tag": "v1.0.0-test",
       "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
       "plugin_file": "testmodule02.py"
     },
     {
@@ -31,6 +33,7 @@
       "version": "1.0.0",
       "release_tag": "v1.0.0-test",
       "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
       "plugin_file": "testmodule03.py"
     },
     {
@@ -41,6 +44,7 @@
       "version": "1.0.0",
       "release_tag": "v1.0.0",
       "author": "hoscm",
+      "repository": "https://github.com/hoscm/freebox",
       "plugin_file": "atomcam2.py",
       "requires_ffmpeg": true,
       "hsbox_min_version": "1.03"
