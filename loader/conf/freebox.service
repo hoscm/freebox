@@ -1,0 +1,17 @@
+[Unit]
+Description=freeBox Loader - Plugin Management HTTP Server
+After=network.target apache2.service
+Requires=apache2.service
+
+[Service]
+Type=simple
+User=hsbox
+WorkingDirectory=/home/hsbox/freebox
+ExecStart=/usr/bin/python3 /home/hsbox/freebox/box_webserver.py
+Restart=on-failure
+RestartSec=5s
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

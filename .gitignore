@@ -1,0 +1,55 @@
+# ============================================================
+# freeBox リポジトリ .gitignore
+# ============================================================
+
+# ----- 機密・環境依存設定ファイル -----
+# 実際の設定ファイル（テンプレート *.template は管理対象）
+freebox_config.ini
+*_config.ini
+*.ini
+!**/*.template
+
+# ----- ビルド成果物 -----
+# .hbxパッケージ（Releasesで配布するためリポジトリには含めない）
+*.hbx
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ----- 開発環境・ローカル一時ファイル -----
+data/
+*.tmp
+*.log
+
+# ----- OS生成ファイル -----
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ----- エディタ・IDE -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ----- テスト・開発環境用 -----
+.env
+.env.*
+test_output/
+
+# ----- Windows誤生成ファイル・OS自動生成 -----
+# コマンドライン誤入力で生成されたファイル
+^
+desktop.ini

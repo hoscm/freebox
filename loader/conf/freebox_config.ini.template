@@ -1,0 +1,54 @@
+# ==============================================================================
+# freebox_config.ini.template
+# freeBox Loader 設定テンプレート
+#
+# このファイルは初回インストール時に freebox_config.ini として使用されます。
+# 既存の freebox_config.ini がある場合は merge_config.py によりマージされます。
+# 設定変更はサービス再起動後に有効になります。
+# ==============================================================================
+
+
+[server]
+
+# Python HTTPサーバーの待受ポート番号
+# 有効範囲: 1024–65535（整数）
+port = 9009
+
+# バインドするIPアドレス
+# 127.0.0.1 = ローカルループバックのみ（Apache2経由でアクセス）
+# 0.0.0.0   = 全インターフェース（直接アクセスを許可する場合）
+host = 127.0.0.1
+
+
+[loader]
+
+# GitHubからModule一覧を取得するインデックスJSONのURL
+index_url = https://raw.githubusercontent.com/hoscm/freebox/main/docs/index.json
+
+# インデックスJSONのキャッシュ有効期限（秒単位の整数）
+# この時間を超えると次回アクセス時に再取得を試みます
+# 例: 3600 = 1時間、 86400 = 24時間
+index_cache_ttl = 3600
+
+# ルート（/freebox/）アクセス時の転送先サブコンテキスト
+# 初期値: manager → /freebox/manager/ に転送
+# 例: プラグイン名を指定すると /freebox/<plugin>/ に転送
+# 英小文字・数字のみ使用可（例: manager, view, dashboard）
+default_context = manager
+
+
+[status]
+
+# ステータス通知の送信先URL（任意）
+# 設定した場合、サービス起動時・異常終了時に通知を送信します
+# 未設定（空欄）の場合は通知処理をスキップします（正常動作）
+notify_url =
+
+# 通知時に使用するコンポーネント名
+# 複数のfreeBoxを運用する場合の識別に使用します
+notify_component = freebox
+
+# NASマウントポイント（GET /api/status のNAS積算チェック用）
+# is_nas_available() がこのパスを os.path.ismount() + os.access(W_OK) で確認します
+# hsBoxのNASマウントパスに合わせて変更してください
+nas_mount_point = /mnt/nas
