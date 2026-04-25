@@ -3408,15 +3408,29 @@ class FreeBoxHandler(BaseHTTPRequestHandler):
             }, ensure_ascii=False).encode("utf-8")
             return Response(500, body, self._CONTENT_JSON)
 
+        # G-21: サブディレクトリの削除（API仕様§2-4 / §7 準拠）
+        # plugins/<id>/ ディレクトリが存在する場合は shutil.rmtree() で再帰削除する。
+        # これにより設定ファイル（<id>_config.ini 等）も一括削除される。
+        import shutil
+        plugin_subdir = os.path.join(PLUGINS_DIR, mod_id)
+        if os.path.isdir(plugin_subdir):
+            try:
+                shutil.rmtree(plugin_subdir)
+                logger.info("[FX-103] サブディレクトリ削除完了: %s", plugin_subdir)
+            except Exception as e:
+                logger.exception("[FX-103] サブディレクトリ削除失敗: %s - %s", plugin_subdir, e)
+                body = json.dumps({
+                    "error":         "uninstall_failed",
+                    "error_message": f"サブディレクトリの削除に失敗しました: {{e}}",
+                    "retryable":     True,
+                }, ensure_ascii=False).encode("utf-8")
+                return Response(500, body, self._CONTENT_JSON)
+
         body = json.dumps({
             "id":      mod_id,
             "message": "Uninstall successful.",
         }, ensure_ascii=False).encode("utf-8")
         return Response(200, body, self._CONTENT_JSON)
-
-    # ------------------------------------------------------------------
-    # FX-104: POST /api/module/upload
-    # ------------------------------------------------------------------
 
     def _api_post_module_upload(self) -> Response:
         """

@@ -2,13 +2,19 @@
 # atomcam2 Module インストールスクリプト
 # .hbx展開後に root 権限で実行される
 # 冪等性あり：複数回実行しても同一状態になる
+#
+# ディレクトリ構造（G-21）:
+#   plugins/atomcam2.py              ← エントリポイント
+#   plugins/atomcam2/
+#     atomcam2_config.ini            ← 設定ファイル
 
 set -e
 
 ZTMP="/home/hsbox/ztmp"
 FREEBOX_DIR="/home/hsbox/freebox"
 PLUGINS_DIR="${FREEBOX_DIR}/plugins"
-CONFIG_INI="${PLUGINS_DIR}/atomcam2_config.ini"
+PLUGIN_SUBDIR="${PLUGINS_DIR}/atomcam2"
+CONFIG_INI="${PLUGIN_SUBDIR}/atomcam2_config.ini"
 
 echo "[atomcam2] インストール開始"
 
@@ -24,14 +30,19 @@ systemctl stop freebox 2>/dev/null || true
 mkdir -p "${PLUGINS_DIR}"
 
 # --------------------------------------------------
-# 3. Plugin ファイル配置
+# 3. Plugin ファイル配置（エントリポイント）
 # --------------------------------------------------
 echo "[atomcam2] Plugin ファイルを配置..."
 cp -f "${ZTMP}/atomcam2.py" "${PLUGINS_DIR}/atomcam2.py"
 chmod 644 "${PLUGINS_DIR}/atomcam2.py"
 
 # --------------------------------------------------
-# 4. 設定ファイル処理（初回：コピー / 更新：マージ）
+# 4. サブディレクトリ作成（G-21: 設定ファイルはサブディレクトリに配置）
+# --------------------------------------------------
+mkdir -p "${PLUGIN_SUBDIR}"
+
+# --------------------------------------------------
+# 5. 設定ファイル処理（初回：コピー / 更新：マージ）
 # --------------------------------------------------
 echo "[atomcam2] 設定ファイルを処理..."
 if [ ! -f "${CONFIG_INI}" ]; then
@@ -48,12 +59,16 @@ chmod 640 "${CONFIG_INI}"
 chown hsbox:hsbox "${CONFIG_INI}" 2>/dev/null || true
 
 # --------------------------------------------------
-# 5. freeBox Loader サービス再起動
+# 6. freeBox Loader サービス再起動
 # --------------------------------------------------
 echo "[atomcam2] サービスを再起動..."
 systemctl start freebox
 
 echo "[atomcam2] インストール完了"
-echo "[atomcam2] ⚠ atomcam2_config.ini にカメラMAC・RTSPパスワード・NASパスを設定してください。"
-echo "[atomcam2]   設定ファイルのパス: ${CONFIG_INI}"
-echo "[atomcam2]   設定後に 'sudo systemctl restart freebox' で有効化されます。"
+echo "[atomcam2] ⚠ 設定 GUI でカメラMAC・RTSPパスワード・NASパスを設定してください。"
+echo "[atomcam2]   Manager UI → atomcam2 モジュール画面から設定できます。"
+echo "[atomcam2]   設定保存後に 'sudo systemctl restart freebox' で有効化されます。"
+echo ""
+echo "[atomcam2] ファイル配置:"
+echo "[atomcam2]   エントリポイント : ${PLUGINS_DIR}/atomcam2.py"
+echo "[atomcam2]   設定ファイル     : ${CONFIG_INI}"

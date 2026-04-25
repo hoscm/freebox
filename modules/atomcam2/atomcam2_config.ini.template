@@ -2,13 +2,18 @@
 # atomcam2_config.ini.template
 # ATOMCAM2 キャプチャ Module 設定テンプレート
 #
-# 配置先: /home/hsbox/freebox/plugins/atomcam2_config.ini
+# 配置先: /home/hsbox/freebox/plugins/atomcam2/atomcam2_config.ini
 # パーミッション: 640 (hsbox:hsbox) 推奨（RTSP認証情報を含むため）
 #
 # このファイルは atomcam2.hbx の run.sh により初回インストール時に
 # atomcam2_config.ini としてコピーされます。
 # 既存の atomcam2_config.ini がある場合は merge_config.py によりマージされます。
 # 設定変更はサービス再起動後に有効になります（freeBox は v1 でホットリロード非対応）。
+#
+# ディレクトリ構造（G-21）:
+#   plugins/atomcam2.py              ← エントリポイント
+#   plugins/atomcam2/
+#     atomcam2_config.ini            ← 本ファイル（設定ファイル）
 # ==============================================================================
 
 
@@ -16,6 +21,7 @@
 
 # ATOMCAM2 の Wi-Fi MACアドレス（コロン区切り、大文字・小文字どちらでも可）
 # ARP テーブルからカメラの IP を自動解決するために使用します。
+# DHCP 環境で IP が変わっても MAC アドレスが設定されていれば自動追従します。
 # カメラ底面または ATOM Cam アプリの「デバイス情報」から確認してください。
 # 例: AA:BB:CC:DD:EE:FF
 mac =
@@ -40,4 +46,4 @@ rtsp_port = 554
 # スケジューラ実行時に NAS が未接続の場合はキャプチャをスキップします。
 # ディレクトリが存在しない場合は自動作成します。
 # 例: /mnt/nas_cam
-nas_dir = /mnt/nas_cam
+nas_dir = /mnt/nas
