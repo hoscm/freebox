@@ -18,11 +18,13 @@ NAS に定期保存する。10分間隔で自動実行。
   POST /atomcam2/config  設定値を保存する（JSON ボディ）
 
 v1 スコープ:
-  - 設定 GUI（MAC アドレス・RTSP・NAS パス）
+  - 設定 GUI（MAC アドレス・IP アドレス・RTSP・NAS パス）
   - 即時キャプチャ（POST /capture）
   - 定期キャプチャ（10分スケジューラ）
   - キャプチャ成否ステータス表示
-  - MAC アドレスから IP を ARP で解決（DHCP 環境対応）
+  - IP 設定時: ユニキャスト ping で ARP を補完 → MAC 照合 → キャプチャ（G-22）
+  - IP 未設定時: ARP テーブルを MAC で直接検索（DHCP 環境対応・フォールバック）
+  - RTSP パス（/live 等）を ini で設定可能（G-22）
 
 v2 以降:
   - キャプチャ間隔の変更
@@ -35,6 +37,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -54,11 +57,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # デフォルト設定値
 # ---------------------------------------------------------------------------
-_DEFAULT_MAC       = ""
-_DEFAULT_USER      = "admin"
-_DEFAULT_PASS      = ""
-_DEFAULT_NAS_DIR   = "/mnt/nas"
-_DEFAULT_RTSP_PORT = "554"
+_DEFAULT_MAC        = ""
+_DEFAULT_IP         = ""        # G-22: IP アドレス（任意。空の場合は ARP のみで解決）
+_DEFAULT_USER       = "admin"
+_DEFAULT_PASS       = ""
+_DEFAULT_NAS_DIR    = "/mnt/nas"
+_DEFAULT_RTSP_PORT  = "554"
+_DEFAULT_RTSP_PATH  = "/live"   # G-22: RTSP パスを ini 外出し。ATOMCAM2 デフォルトは /live
 
 # G-21: 設定ファイルをサブディレクトリ plugins/atomcam2/ に配置する
 _PLUGIN_DIR  = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +75,7 @@ _IP_RE  = re.compile(r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})')
 
 # 設定キーの許可リスト（POST /atomcam2/config で受け付けるキー名）
 _ALLOWED_CONFIG_KEYS = frozenset({
-    "mac", "rtsp_user", "rtsp_pass", "rtsp_port", "nas_dir"
+    "mac", "rtsp_ip", "rtsp_user", "rtsp_pass", "rtsp_port", "rtsp_path", "nas_dir"
 })
 
 
@@ -80,9 +85,11 @@ _ALLOWED_CONFIG_KEYS = frozenset({
 @dataclass
 class _CaptureConfig:
     mac:       str
+    rtsp_ip:   str   # G-22: IP アドレス（任意）
     rtsp_user: str
     rtsp_pass: str
     rtsp_port: str
+    rtsp_path: str   # G-22: /live 等のパス部分
     nas_dir:   str
 
 
@@ -106,9 +113,11 @@ def _load_plugin_config() -> configparser.ConfigParser:
     cfg = configparser.ConfigParser()
     cfg["camera"] = {
         "mac":       _DEFAULT_MAC,
+        "rtsp_ip":   _DEFAULT_IP,
         "rtsp_user": _DEFAULT_USER,
         "rtsp_pass": _DEFAULT_PASS,
         "rtsp_port": _DEFAULT_RTSP_PORT,
+        "rtsp_path": _DEFAULT_RTSP_PATH,
     }
     cfg["storage"] = {
         "nas_dir": _DEFAULT_NAS_DIR,
@@ -125,37 +134,18 @@ def _load_plugin_config() -> configparser.ConfigParser:
 
 
 # ---------------------------------------------------------------------------
-# MAC アドレスから IP を解決
+# ARP テーブル検索
 # ---------------------------------------------------------------------------
-def _resolve_ip_from_mac(mac: str) -> "str | None":
+def _search_arp_table(target_mac: str) -> "str | None":
     """
-    MAC アドレスから ARP テーブルで IP を解決する。
-    v1: 毎回 MAC から解決（DHCP 環境で IP が変わっても追従できる）。
-    v2 以降: IP が設定済みの場合は IP を直接使用し、失敗時のみ MAC で再解決する予定。
+    ARP テーブルを検索して MAC アドレスに対応する IP を返す。
+    見つからなければ None。
     """
-    if not mac:
-        return None
-
-    target_mac = mac.replace(":", "").replace("-", "").lower()
-
-    if os.name != "nt":
-        try:
-            subprocess.run(
-                ["arp-scan", "--localnet", "--retry=2"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=10,
-            )
-        except FileNotFoundError:
-            logger.debug("[atomcam2] arp-scan が見つかりません（スキップ）")
-        except subprocess.TimeoutExpired:
-            logger.warning("[atomcam2] arp-scan タイムアウト")
-        except Exception as e:
-            logger.warning("[atomcam2] arp-scan 実行エラー: %s", e)
-
     try:
         encoding = "cp932" if os.name == "nt" else "utf-8"
-        result = subprocess.check_output(["arp", "-a"], timeout=5).decode(encoding, errors="replace")
+        result = subprocess.check_output(
+            ["arp", "-a"], timeout=5,
+        ).decode(encoding, errors="replace")
         for line in result.splitlines():
             found_macs = _MAC_RE.findall(line)
             for found_mac in found_macs:
@@ -173,6 +163,76 @@ def _resolve_ip_from_mac(mac: str) -> "str | None":
     except Exception as e:
         logger.warning("[atomcam2] ARP 検索エラー: %s", e)
     return None
+
+
+# ---------------------------------------------------------------------------
+# ユニキャスト ping で ARP テーブルを補完（G-22）
+# ---------------------------------------------------------------------------
+def _ping_to_refresh_arp(ip: str) -> None:
+    """
+    指定 IP にユニキャスト ping を打ち、ARP テーブルに載るよう促す。
+    実機確認済み: ping -c 2 <IP> で ARP テーブルに入ることを確認（G-22）。
+    """
+    if os.name == "nt":
+        return
+    try:
+        logger.info("[atomcam2] ARP 補完: ユニキャスト ping → %s", ip)
+        subprocess.run(
+            ["ping", "-c", "2", "-W", "1", ip],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        # ping 完了後に ARP テーブルが更新されるまで少し待つ
+        time.sleep(0.5)
+    except subprocess.TimeoutExpired:
+        logger.warning("[atomcam2] ユニキャスト ping タイムアウト: %s", ip)
+    except Exception as e:
+        logger.warning("[atomcam2] ユニキャスト ping エラー: %s", e)
+
+
+# ---------------------------------------------------------------------------
+# MAC アドレスから IP を解決（G-22 改善版）
+# ---------------------------------------------------------------------------
+def _resolve_ip_from_mac(mac: str, hint_ip: str = "") -> "str | None":
+    """
+    MAC アドレスから IP を解決する。
+
+    手順（G-22 改善）:
+      IP ヒントあり:
+        1. hint_ip にユニキャスト ping → ARP テーブルを補完
+        2. arp -a で MAC 照合
+        3. MAC 照合失敗でも hint_ip をそのまま返す（IP 固定環境向け）
+      IP ヒントなし:
+        1. arp -a で直接 MAC 検索（ARP テーブルにすでにある場合）
+        2. 見つからなければ None（ブロードキャスト ping は ATOMCAM2 非対応のため使わない）
+    """
+    if not mac:
+        return None
+
+    target_mac = mac.replace(":", "").replace("-", "").lower()
+
+    if hint_ip:
+        # IP ヒントあり: ping で ARP を補完してから MAC 照合
+        _ping_to_refresh_arp(hint_ip)
+        ip = _search_arp_table(target_mac)
+        if ip:
+            logger.info("[atomcam2] IP 解決成功（ping 補完）: %s", ip)
+            return ip
+        # MAC 照合失敗: hint_ip をそのまま使用（IP が変わっていない前提）
+        logger.warning(
+            "[atomcam2] ARP 照合失敗。設定 IP をそのまま使用: %s (MAC=%s)",
+            hint_ip, mac,
+        )
+        return hint_ip
+    else:
+        # IP ヒントなし: ARP テーブルを直接検索
+        ip = _search_arp_table(target_mac)
+        if ip:
+            logger.info("[atomcam2] IP 解決成功（ARP 直接検索）: %s", ip)
+            return ip
+        logger.warning("[atomcam2] ARP テーブルにカメラが見つかりません (MAC=%s)", mac)
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -238,26 +298,21 @@ class Plugin:
     def handle(self, req) -> Response:
         path = req.path.split("?")[0].rstrip("/")
 
-        # POST /atomcam2/capture
         if req.method == "POST" and path == "/atomcam2/capture":
             self._do_capture()
             body = json.dumps(self._last_capture, ensure_ascii=False).encode("utf-8")
             return Response(200, body, "application/json; charset=utf-8")
 
-        # GET /atomcam2/status
         if req.method == "GET" and path == "/atomcam2/status":
             body = json.dumps(self._last_capture, ensure_ascii=False).encode("utf-8")
             return Response(200, body, "application/json; charset=utf-8")
 
-        # GET /atomcam2/config
         if req.method == "GET" and path == "/atomcam2/config":
             return self._handle_get_config()
 
-        # POST /atomcam2/config
         if req.method == "POST" and path == "/atomcam2/config":
             return self._handle_post_config(req)
 
-        # GET /atomcam2/ (トップ画面)
         body = self._render_html().encode("utf-8")
         return Response(200, body, "text/html; charset=utf-8")
 
@@ -283,12 +338,13 @@ class Plugin:
     # GET /atomcam2/config
     # ------------------------------------------------------------------
     def _handle_get_config(self) -> Response:
-        """現在の設定値を JSON で返す。パスワードは伏字にしない。"""
         data = {
             "mac":       self._cfg.get("camera",  "mac",       fallback=_DEFAULT_MAC),
+            "rtsp_ip":   self._cfg.get("camera",  "rtsp_ip",   fallback=_DEFAULT_IP),
             "rtsp_user": self._cfg.get("camera",  "rtsp_user", fallback=_DEFAULT_USER),
             "rtsp_pass": self._cfg.get("camera",  "rtsp_pass", fallback=_DEFAULT_PASS),
             "rtsp_port": self._cfg.get("camera",  "rtsp_port", fallback=_DEFAULT_RTSP_PORT),
+            "rtsp_path": self._cfg.get("camera",  "rtsp_path", fallback=_DEFAULT_RTSP_PATH),
             "nas_dir":   self._cfg.get("storage", "nas_dir",   fallback=_DEFAULT_NAS_DIR),
         }
         body = json.dumps(data, ensure_ascii=False).encode("utf-8")
@@ -298,20 +354,6 @@ class Plugin:
     # POST /atomcam2/config
     # ------------------------------------------------------------------
     def _handle_post_config(self, req) -> Response:
-        """
-        設定値を JSON ボディで受け取り、atomcam2_config.ini に保存する。
-
-        受け付けるフィールド:
-          mac       : カメラの MAC アドレス（空文字も可）
-          rtsp_user : RTSP ユーザー名
-          rtsp_pass : RTSP パスワード（空文字も可）
-          rtsp_port : RTSP ポート番号（数字文字列）
-          nas_dir   : NAS 保存先ディレクトリの絶対パス
-
-        エラーレスポンス:
-          400 : JSON 解析失敗 / 不正フィールド名 / rtsp_port が数字でない
-          500 : 設定ファイル書き込み失敗
-        """
         try:
             body_bytes = req.read_body()
             params = json.loads(body_bytes.decode("utf-8"))
@@ -330,7 +372,6 @@ class Plugin:
             }, ensure_ascii=False).encode("utf-8")
             return Response(400, err, "application/json; charset=utf-8")
 
-        # 許可されていないキーの拒否
         unknown_keys = set(params.keys()) - _ALLOWED_CONFIG_KEYS
         if unknown_keys:
             err = json.dumps({
@@ -339,7 +380,6 @@ class Plugin:
             }, ensure_ascii=False).encode("utf-8")
             return Response(400, err, "application/json; charset=utf-8")
 
-        # rtsp_port は数字のみ許可
         if "rtsp_port" in params:
             port_str = str(params["rtsp_port"]).strip()
             if not port_str.isdigit():
@@ -350,13 +390,18 @@ class Plugin:
                 return Response(400, err, "application/json; charset=utf-8")
             params["rtsp_port"] = port_str
 
-        # 設定を更新
+        if "rtsp_path" in params:
+            path_str = str(params["rtsp_path"]).strip()
+            if not path_str.startswith("/"):
+                path_str = "/" + path_str
+            params["rtsp_path"] = path_str
+
         if "camera" not in self._cfg:
             self._cfg["camera"] = {}
         if "storage" not in self._cfg:
             self._cfg["storage"] = {}
 
-        camera_keys  = {"mac", "rtsp_user", "rtsp_pass", "rtsp_port"}
+        camera_keys  = {"mac", "rtsp_ip", "rtsp_user", "rtsp_pass", "rtsp_port", "rtsp_path"}
         storage_keys = {"nas_dir"}
 
         for key, val in params.items():
@@ -365,7 +410,6 @@ class Plugin:
             elif key in storage_keys:
                 self._cfg["storage"][key] = str(val)
 
-        # G-21: サブディレクトリが存在しない場合は作成してから書き込む
         os.makedirs(_SUBDIR, exist_ok=True)
         try:
             with open(_CONFIG_PATH, "w", encoding="utf-8") as f:
@@ -389,9 +433,11 @@ class Plugin:
         c = self._cfg
         return _CaptureConfig(
             mac=c.get("camera",  "mac",       fallback=_DEFAULT_MAC),
+            rtsp_ip=c.get("camera",  "rtsp_ip",   fallback=_DEFAULT_IP),
             rtsp_user=c.get("camera",  "rtsp_user", fallback=_DEFAULT_USER),
             rtsp_pass=c.get("camera",  "rtsp_pass", fallback=_DEFAULT_PASS),
             rtsp_port=c.get("camera",  "rtsp_port", fallback=_DEFAULT_RTSP_PORT),
+            rtsp_path=c.get("camera",  "rtsp_path", fallback=_DEFAULT_RTSP_PATH),
             nas_dir=c.get("storage", "nas_dir",   fallback=_DEFAULT_NAS_DIR),
         )
 
@@ -399,7 +445,7 @@ class Plugin:
         cfg = self._read_capture_config()
         if not self._check_nas(cfg.nas_dir):
             return
-        ip = self._resolve_ip(cfg.mac)
+        ip = self._resolve_ip(cfg)
         if not ip:
             return
         save_path = self._prepare_save_path(cfg.nas_dir)
@@ -414,11 +460,11 @@ class Plugin:
             return False
         return True
 
-    def _resolve_ip(self, mac: str) -> "str | None":
-        ip = _resolve_ip_from_mac(mac)
+    def _resolve_ip(self, cfg: _CaptureConfig) -> "str | None":
+        ip = _resolve_ip_from_mac(cfg.mac, hint_ip=cfg.rtsp_ip)
         if not ip:
-            logger.warning("[atomcam2] カメラ IP を解決できません (MAC=%s)", mac)
-            self._set_status("skip_ip", f"IP 解決失敗 (MAC={mac})")
+            logger.warning("[atomcam2] カメラ IP を解決できません (MAC=%s)", cfg.mac)
+            self._set_status("skip_ip", f"IP 解決失敗 (MAC={cfg.mac})")
         return ip
 
     def _prepare_save_path(self, nas_dir: str) -> "str | None":
@@ -434,8 +480,9 @@ class Plugin:
         return os.path.join(daily_dir, filename)
 
     def _run_capture(self, cfg: _CaptureConfig, ip: str, save_path: str) -> None:
-        rtsp_url         = f"rtsp://{cfg.rtsp_user}:{cfg.rtsp_pass}@{ip}:{cfg.rtsp_port}/live"
-        rtsp_url_for_log = f"rtsp://{cfg.rtsp_user}:***@{ip}:{cfg.rtsp_port}/live"
+        rtsp_path        = cfg.rtsp_path if cfg.rtsp_path else _DEFAULT_RTSP_PATH
+        rtsp_url         = f"rtsp://{cfg.rtsp_user}:{cfg.rtsp_pass}@{ip}:{cfg.rtsp_port}{rtsp_path}"
+        rtsp_url_for_log = f"rtsp://{cfg.rtsp_user}:***@{ip}:{cfg.rtsp_port}{rtsp_path}"
         logger.info("[atomcam2] キャプチャ開始: %s → %s", rtsp_url_for_log, save_path)
         ok = _capture_frame(rtsp_url, save_path)
         if ok:
@@ -471,11 +518,12 @@ class Plugin:
         msg        = lc.get("message")    or "&#x2015;"
         nas_dir    = self._cfg.get("storage", "nas_dir",   fallback=_DEFAULT_NAS_DIR)
         mac        = self._cfg.get("camera",  "mac",       fallback="(未設定)")
+        rtsp_ip    = self._cfg.get("camera",  "rtsp_ip",   fallback="")
         rtsp_user  = self._cfg.get("camera",  "rtsp_user", fallback=_DEFAULT_USER)
         rtsp_pass  = self._cfg.get("camera",  "rtsp_pass", fallback="")
         rtsp_port  = self._cfg.get("camera",  "rtsp_port", fallback=_DEFAULT_RTSP_PORT)
+        rtsp_path  = self._cfg.get("camera",  "rtsp_path", fallback=_DEFAULT_RTSP_PATH)
 
-        # キャプチャ成否をステータス表示（NAS 接続状態ではなくキャプチャ結果を主表示）
         capture_status_label = {
             "init":     "未実行",
             "ok":       "成功",
@@ -487,7 +535,6 @@ class Plugin:
         nas_available = _is_nas_available(nas_dir)
         nas_status = "&#10003; 接続中" if nas_available else "&#10007; 未接続"
 
-        # HTML 特殊文字のエスケープ（設定値を属性・テキストに埋め込む際に使用）
         def _he(s: str) -> str:
             return (s.replace("&", "&amp;")
                      .replace("<", "&lt;")
@@ -507,7 +554,7 @@ class Plugin:
   th, td {{ text-align: left; padding: 0.5rem 0.8rem; border: 1px solid #ddd; }}
   th {{ background: #eee; width: 35%; }}
   .form-row {{ display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; max-width: 640px; }}
-  .form-row label {{ width: 180px; flex-shrink: 0; font-size: 0.9rem; }}
+  .form-row label {{ width: 200px; flex-shrink: 0; font-size: 0.9rem; }}
   .form-row input {{ flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9rem; }}
   .form-row .hint {{ font-size: 0.78rem; color: #888; margin-left: 0.3rem; white-space: nowrap; }}
   .btn {{
@@ -522,7 +569,7 @@ class Plugin:
   .status-err  {{ color: #e74c3c; font-weight: bold; }}
   .status-warn {{ color: #f39c12; font-weight: bold; }}
   #result, #config-result {{ margin-top: 0.6rem; font-size: 0.85rem; color: #333; min-height: 1.2em; }}
-  .mac-hint {{ font-size: 0.8rem; color: #555; margin-top: 0.3rem; max-width: 640px; }}
+  .field-note {{ font-size: 0.8rem; color: #666; margin: 0.2rem 0 0.8rem 200px; max-width: 440px; }}
 </style>
 </head>
 <body>
@@ -540,15 +587,16 @@ class Plugin:
 <div id="result"></div>
 
 <h2>設定</h2>
-<p style="font-size:0.85rem;color:#555;max-width:640px;margin-bottom:0.8rem;">
-  カメラの MAC アドレスを設定すると、DHCP で IP が変わっても自動で追従します。<br>
-  MAC アドレスはカメラ底面または ATOM Cam アプリの「デバイス情報」から確認できます。
-</p>
 <div class="form-row">
   <label>カメラ MAC アドレス</label>
   <input type="text" id="cfg-mac" value="{_he(mac)}" placeholder="AA:BB:CC:DD:EE:FF">
-  <span class="hint">ARP で IP を自動解決</span>
 </div>
+<p class="field-note">カメラ底面または ATOM Cam アプリの「デバイス情報」から確認できます。</p>
+<div class="form-row">
+  <label>カメラ IP アドレス（任意）</label>
+  <input type="text" id="cfg-rtsp-ip" value="{_he(rtsp_ip)}" placeholder="192.168.x.x">
+</div>
+<p class="field-note">設定すると ping で ARP テーブルを補完し IP 解決の信頼性が上がります。DHCP 固定や IP 固定の場合は設定推奨。空欄の場合は ARP テーブルを直接検索します。</p>
 <div class="form-row">
   <label>RTSP ユーザー名</label>
   <input type="text" id="cfg-rtsp-user" value="{_he(rtsp_user)}">
@@ -562,8 +610,13 @@ class Plugin:
   <input type="text" id="cfg-rtsp-port" value="{_he(rtsp_port)}" placeholder="554">
 </div>
 <div class="form-row">
+  <label>RTSP パス</label>
+  <input type="text" id="cfg-rtsp-path" value="{_he(rtsp_path)}" placeholder="/live">
+  <span class="hint">ATOMCAM2 デフォルト: /live</span>
+</div>
+<div class="form-row">
   <label>NAS 保存先ディレクトリ</label>
-  <input type="text" id="cfg-nas-dir" value="{_he(nas_dir)}" placeholder="/mnt/nas_cam">
+  <input type="text" id="cfg-nas-dir" value="{_he(nas_dir)}" placeholder="/mnt/nas">
 </div>
 <button class="btn btn-save" onclick="saveConfig()">設定を保存</button>
 <div id="config-result"></div>
@@ -594,9 +647,11 @@ async function saveConfig() {{
   const el = id => document.getElementById(id).value;
   const payload = {{
     mac:       el('cfg-mac'),
+    rtsp_ip:   el('cfg-rtsp-ip'),
     rtsp_user: el('cfg-rtsp-user'),
     rtsp_pass: el('cfg-rtsp-pass'),
     rtsp_port: el('cfg-rtsp-port'),
+    rtsp_path: el('cfg-rtsp-path'),
     nas_dir:   el('cfg-nas-dir'),
   }};
   document.getElementById('config-result').textContent = '保存中...';
