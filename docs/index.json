@@ -42,7 +42,7 @@
       "description": "ATOM Cam 2 の RTSP ストリームから ffmpeg で1フレームをキャプチャし、NAS へ定期保存します。10分間隔で自動実行。",
       "status": "restricted",
       "version": "1.0.0",
-      "release_tag": "v1.0.0",
+      "release_tag": "v1.0.0-test",
       "author": "hoscm",
       "repository": "https://github.com/hoscm/freebox",
       "plugin_file": "atomcam2.py",
