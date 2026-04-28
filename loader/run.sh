@@ -33,14 +33,12 @@ mkdir -p "${WWW_DIR}"
 # --------------------------------------------------
 echo "[freeBox] サーバーファイルを配置..."
 cp -f "${ZTMP}/server/box_webserver.py" "${FREEBOX_DIR}/box_webserver.py"
-cp -f "${ZTMP}/merge_config.py"         "${FREEBOX_DIR}/merge_config.py"
 
 # パーミッション設定
 chmod 755 "${FREEBOX_DIR}"
 chmod 755 "${FREEBOX_DIR}/plugins"
 chmod 755 "${FREEBOX_DIR}/data"
 chmod 644 "${FREEBOX_DIR}/box_webserver.py"
-chmod 644 "${FREEBOX_DIR}/merge_config.py"
 
 # --------------------------------------------------
 # 4. 設定ファイル処理
@@ -51,7 +49,7 @@ if [ ! -f "${CONFIG_INI}" ]; then
     cp -f "${ZTMP}/freebox_config.ini.template" "${CONFIG_INI}"
 else
     echo "[freeBox] freebox_config.ini が存在するため差分マージを実行"
-    python3 "${FREEBOX_DIR}/merge_config.py" \
+    python3 "${ZTMP}/merge_config.py" \
         "${CONFIG_INI}" \
         "${ZTMP}/freebox_config.ini.template"
 fi

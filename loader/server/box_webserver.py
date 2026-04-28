@@ -2927,23 +2927,6 @@ class FreeBoxHandler(BaseHTTPRequestHandler):
                 _send_response(self, 503, b"ManagerPlugin not initialized", "text/plain")
             return
 
-        # ④c /test-assets/ → FTテスト用静的ファイル配信
-        if plugin_name == "test-assets":
-            file_path = path.lstrip("/")  # "test-assets/releases/download/1.0.0/testmodule01.hbx"
-            abs_path  = os.path.join(BASE_DIR, file_path)
-            # パストラバーサル二重チェック
-            if not os.path.abspath(abs_path).startswith(os.path.abspath(BASE_DIR)):
-                _send_response(self, 400, b"400 Bad Request", "text/plain")
-                return
-            if os.path.isfile(abs_path):
-                with open(abs_path, "rb") as f:
-                    data = f.read()
-                _send_response(self, 200, data, "application/octet-stream")
-            else:
-                logger.warning("[test-assets] ファイル不存在: %s", abs_path)
-                _send_response(self, 404, b"404 Not Found", "text/plain")
-            return
-
         # ⑤ Plugin 検索・実行
         pm     = self.__class__.plugin_manager
         plugin = pm.find_plugin(path) if pm else None
@@ -2966,42 +2949,8 @@ class FreeBoxHandler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------------
     # FX-107: GET /favicon.ico
     # ------------------------------------------------------------------
-        """
-        /releases/download/{version}/{filename} を
-        server/releases/ 以下の実ファイルとして返す。
 
-        FTモック用。repository = "http://127.0.0.1:9009" のときのみ使われる。
-        本番GitHub配信に切り替えたらこのメソッドは削除すること。
-        """
-        # セキュリティ: ".."含むパスは既に _dispatch() で拒否済み
-        # /releases/download/1.0.0/testmodule01.hbx のみ許可
-        rel = posixpath.normpath(path.lstrip("/"))  # releases/download/1.0.0/testmodule01.hbx
-        local_path = os.path.join(BASE_DIR, rel.replace("/", os.sep))
-
-        if not local_path.startswith(os.path.join(BASE_DIR, "releases")):
-            logger.warning("[releases] 不正パス拒否: %s", local_path)
-            return Response(403, b"403 Forbidden", "text/plain")
-
-        if not os.path.isfile(local_path):
-            logger.warning("[releases] ファイルなし: %s", local_path)
-            body = json.dumps({
-                "error": "not_found",
-                "error_message": f"HBXファイルが見つかりません: {os.path.basename(local_path)}"
-            }, ensure_ascii=False).encode("utf-8")
-            return Response(404, body, "application/json; charset=utf-8")
-
-        try:
-            with open(local_path, "rb") as f:
-                data = f.read()
-            logger.info("[releases] 配信: %s (%d bytes)", local_path, len(data))
-            return Response(200, data, "application/octet-stream")
-        except Exception as e:
-            logger.error("[releases] 読み取りエラー: %s", e)
-            return Response(500, b"500 Internal Server Error", "text/plain")
-
-    # ------------------------------------------------------------------
-    # Loader 内部 API ルーティング (FX-101〜106)
-    # ------------------------------------------------------------------
+    def _handle_favicon(self) -> None:
 
     _CONTENT_JSON = "application/json; charset=utf-8"
 

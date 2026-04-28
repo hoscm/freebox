@@ -50,7 +50,7 @@ if [ ! -f "${CONFIG_INI}" ]; then
     cp -f "${ZTMP}/atomcam2_config.ini.template" "${CONFIG_INI}"
 else
     echo "[atomcam2] atomcam2_config.ini が存在するため差分マージを実行"
-    python3 "${FREEBOX_DIR}/merge_config.py" \
+    python3 "${ZTMP}/merge_config.py" \
         "${CONFIG_INI}" \
         "${ZTMP}/atomcam2_config.ini.template"
 fi
@@ -59,7 +59,22 @@ chmod 640 "${CONFIG_INI}"
 chown hsbox:hsbox "${CONFIG_INI}" 2>/dev/null || true
 
 # --------------------------------------------------
-# 6. freeBox Loader サービス再起動
+# 6. バージョン情報記録（D-02: Loader v2 で参照される）
+# --------------------------------------------------
+echo "[atomcam2] バージョン情報を記録..."
+MODULE_VERSION=""
+if [ -f "${ZTMP}/version.txt" ]; then
+    # version.txt 2行形式: 行1=module_id, 行2=version
+    MODULE_VERSION="$(sed -n '2p' "${ZTMP}/version.txt")"
+fi
+cat > "${PLUGIN_SUBDIR}/version.txt" <<EOF
+atomcam2
+${MODULE_VERSION}
+EOF
+chmod 644 "${PLUGIN_SUBDIR}/version.txt"
+
+# --------------------------------------------------
+# 7. freeBox Loader サービス再起動
 # --------------------------------------------------
 echo "[atomcam2] サービスを再起動..."
 systemctl start freebox
