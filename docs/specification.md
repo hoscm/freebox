@@ -101,6 +101,43 @@ freeBox Loader（box_webserver.py / Python HTTP サーバー）
 
 ---
 
+## 3-1. freebox.service の仕様
+
+`/etc/systemd/system/freebox.service` の正規形式は以下の通りです。
+
+```ini
+[Unit]
+Description=freeBox Loader - Plugin Management HTTP Server
+After=network.target apache2.service
+Requires=apache2.service
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=hsbox
+WorkingDirectory=/home/hsbox/freebox
+ExecStart=/usr/bin/python3 /home/hsbox/freebox/box_webserver.py
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
+```
+
+**セクション配置ルール（重要）:**
+
+| ディレクティブ | セクション | 理由 |
+|-------------|---------|------|
+| `StartLimitIntervalSec` | `[Unit]` | systemd の仕様上、起動制限はユニット全体の属性であるため `[Unit]` に記述する |
+| `StartLimitBurst` | `[Unit]` | 同上 |
+| `Restart` / `RestartSec` | `[Service]` | サービスプロセスの再起動動作であるため `[Service]` に記述する |
+
+> **注意:** `StartLimitIntervalSec` / `StartLimitBurst` を `[Service]` に書いても一部の systemd バージョンでは動作しますが、
+> 規範的な書き方ではなく、将来のバージョンで無視される可能性があります。必ず `[Unit]` セクションに記述してください。
+
+---
+
 ## 4. Plugin のインストール方法
 
 Plugin のインストールは 3 つの方法があります。
@@ -189,7 +226,6 @@ freebox
 ### 7-3. 動作要件
 
 - **hsBox 1.03.01.01 以降**（hsBox 1.3.1.0 に最新ライセンスパッチを適用した状態）で利用可能
-- ST では「hsBox 1.3.1.0 + 最新ライセンスパッチ適用済み（= 1.03.01.01）」環境でテストを実施すること
 - ライセンスパッチ未適用の hsBox 1.03.01.00 では適用不可
 
 ### 7-4. obb・obv・nwv の更新ルール

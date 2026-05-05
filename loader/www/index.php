@@ -2,7 +2,7 @@
 require dirname(__FILE__) . '/../hsbox_config.php';
 require dirname(__FILE__) . '/../hsbox_sub.php';
 
-$tab_title = 'freeBox';
+$tab_title='freeBox';
 $tab_key   = 'freebox';
 ?>
 <HTML>

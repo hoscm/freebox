@@ -176,6 +176,11 @@ def load_config() -> configparser.ConfigParser:
     cfg["status"] = {
         "notify_url":       "",
         "notify_component": "FreeBoxLoader",
+        # G-31: hsbox_top_url / hsbox_sp_url のデフォルト値を削除。
+        # topnavリンクは_render_html_template内で相対パス（"/", "/sp/"）で生成する方式に変更済み（G-30）。
+        # 設定ファイル内の値は現在参照されないため、ハードコードかたデフォルト値を空にする。
+        "hsbox_top_url":    "",
+        "hsbox_sp_url":     "",
     }
 
     if os.path.exists(CONFIG_PATH):
@@ -743,12 +748,18 @@ def _parse_plugin_name(path: str) -> "str | None":
     リクエストパスから Plugin 名（第1セグメント）を取り出す。
     FD §4-4 準拠: Plugin 名の検証は Core (_dispatch) のみで行う。
 
+    G-30修正: urlparse でクエリストリング（?token=xxx 等）を除去してからパースする。
+    hsBox タブリンクは /?token=xxxx 形式のため、クエリストリングを含む path が
+    そのまま渡されるとバリデーション失敗（None）になる問題を修正。
+
     戻り値:
       ""       : ルートアクセス（パスが "/" のみ）
       plugin名 : 有効な Plugin 名（VALID_PLUGIN_NAME 通過済み）
       None     : バリデーション失敗 → 400 Bad Request を返すべき状態
     """
-    first = path.strip("/").split("/")[0]
+    # クエリストリングを除去してパス部分のみ取得（例: /?token=xxx → /）
+    path_only = urlparse(path).path
+    first = path_only.strip("/").split("/")[0]
     if not first:
         return ""
     if not VALID_PLUGIN_NAME.match(first):
@@ -944,7 +955,7 @@ def _build_scheduler_rows(scheduler_jobs):
     return rows
 
 
-def _render_html_template(stats, index_cards_html, private_cards_html, sched_rows, cfg, last_fetched):
+def _render_html_template(stats, index_cards_html, private_cards_html, sched_rows, cfg, last_fetched, token: str = ""):
     notify_url      = cfg.get("status", "notify_url",      fallback="")
     default_context = cfg.get("loader", "default_context", fallback=DEFAULT_CONTEXT)
     index_url       = cfg.get("loader", "index_url",       fallback=DEFAULT_INDEX_URL)
@@ -955,6 +966,15 @@ def _render_html_template(stats, index_cards_html, private_cards_html, sched_row
     #   base_path=''       → BP=''        → fetch('/api/..')         → 直接接続時 ✅
     _base_path      = cfg.get("server", "base_path", fallback="").rstrip("/")
     now_str         = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # G-30: hsBox セッショントークンを受け取り、戻りリンクに付加する。
+    # token は /?token=xxxx の xxxx 部分（値のみ）。空の場合はサフィックスなし。
+    _token_suffix = f"?token={token}" if token else ""
+    # G-30: topnav 戻りリンクは相対パスで生成する。
+    # ブラウザのアドレスバーのホスト（192.168.2.75）のルートが hsBox トップになるため。
+    # 設定ファイルの hsbox_top_url / hsbox_sp_url は参照しない。
+    _hsbox_top = "/"
+    _hsbox_sp  = "/sp/"
 
     index_count    = stats["index_count"]
     deployed_count = stats["deployed_count"]
@@ -1253,9 +1273,9 @@ def _render_html_template(stats, index_cards_html, private_cards_html, sched_row
     <div class="dot"></div>
     <span>freebox.service running</span>
     <span style="color:var(--border-hi)">|</span>
-    <a href="http://192.168.2.1/" style="color:var(--text-lo);text-decoration:none">◀ hsBox Top</a>
+    <a href="{_hsbox_top}{_token_suffix}" style="color:var(--text-lo);text-decoration:none">◀ hsBox Top</a>
     <span style="color:var(--border-hi)">|</span>
-    <a href="http://192.168.2.1/sp/" style="color:var(--text-lo);text-decoration:none">SP</a>
+    <a href="{_hsbox_sp}{_token_suffix}" style="color:var(--text-lo);text-decoration:none">SP</a>
   </div>
 </nav>
 
@@ -1304,14 +1324,16 @@ def _render_html_template(stats, index_cards_html, private_cards_html, sched_row
       <span class="icon">⬡</span> Module List
       <span class="sidebar-badge">{index_count}</span>
     </div>
-    <div class="sidebar-item" onclick="switchTab('modules')">
+    <!-- BK-12 v1暫定: Deployed フィルタ未実装のため非表示（v2 で実装予定） -->
+    <!-- <div class="sidebar-item" onclick="switchTab('modules')">
       <span class="icon">↓</span> Deployed
       <span class="sidebar-badge">{deployed_count}</span>
-    </div>
-    <div class="sidebar-item" onclick="switchTab('modules')">
+    </div> -->
+    <!-- BK-12 v1暫定: Local/Private フィルタ未実装のため非表示（v2 で実装予定） -->
+    <!-- <div class="sidebar-item" onclick="switchTab('modules')">
       <span class="icon">🔴</span> Local / Private
       <span class="sidebar-badge">{private_count}</span>
-    </div>
+    </div> -->
     <div class="sidebar-divider"></div>
     <div class="sidebar-section">System</div>
     <div class="sidebar-item" onclick="switchTab('scheduler')">
@@ -2771,7 +2793,7 @@ function doUninstall(id) {{
 </html>"""
 
 
-def _build_manager_html(index_data, plugin_names, scheduler_jobs, cfg, last_fetched) -> bytes:
+def _build_manager_html(index_data, plugin_names, scheduler_jobs, cfg, last_fetched, token: str = "") -> bytes:
     """Module Manager UI の HTML を生成し bytes で返す。"""
     modules   = index_data.get("modules", [])
     logger.info("[DEBUG] index_data=%s", json.dumps(index_data))  # ← 追加
@@ -2783,7 +2805,7 @@ def _build_manager_html(index_data, plugin_names, scheduler_jobs, cfg, last_fetc
     private_cards = _build_private_cards(plugin_names, index_ids)
     sched_rows    = _build_scheduler_rows(scheduler_jobs)
     html          = _render_html_template(
-        stats, index_cards, private_cards, sched_rows, cfg, last_fetched
+        stats, index_cards, private_cards, sched_rows, cfg, last_fetched, token=token
     )
     # FX-211: [server] base_path でJS内APIパスを補正
     # Apache2 Proxy 経由時に fetch('/api/...') が正しいパスに届かない問題を解消する。
@@ -2841,7 +2863,11 @@ class ManagerPlugin:
         sched_jobs   = scheduler.get_jobs() if scheduler else []
         last_fetched = index_cache.get_last_fetched() if index_cache else 0.0
 
-        body = _build_manager_html(index_data, plugin_names, sched_jobs, cfg, last_fetched)
+        # G-30: リクエストURLから token を取り出し、戻りリンクに付加する
+        _qs  = parse_qs(urlparse(handler.path).query)
+        _tok = _qs.get("token", [""])[0]  # 値のみ取出し（安全な文字列）
+
+        body = _build_manager_html(index_data, plugin_names, sched_jobs, cfg, last_fetched, token=_tok)
         _send_response(handler, 200, body, "text/html; charset=utf-8")
 
 
@@ -2892,7 +2918,7 @@ class FreeBoxHandler(BaseHTTPRequestHandler):
             _send_response(self, 400, b"400 Bad Request: invalid plugin name", "text/plain")
             return
 
-        # ③ ルートアクセス → default_context へリダイレクト
+        # ③ ルートアクセス → default_context への内部転送
         if plugin_name == "":
             cfg         = self.__class__.cfg
             default_ctx = (
@@ -2901,9 +2927,29 @@ class FreeBoxHandler(BaseHTTPRequestHandler):
             ) or DEFAULT_CONTEXT
             if not VALID_PLUGIN_NAME.match(default_ctx):
                 default_ctx = DEFAULT_CONTEXT
-            self.send_response(302)
-            self.send_header("Location", f"/{default_ctx}/")
-            self.end_headers()
+            # G-31修正: 302リダイレクトから内部転送に変更。
+            # 302だとブラウザに /manager/?token=xxx が返り、
+            # Apacheが/freebox/を期待するため404になる問題を解消する。
+            # 内部転送: self.path（/?token=xxx）をそのままhandlerに渡す。
+            # handle_manager()がurlparseでtokenを取り出すため正しく動作する。
+            if default_ctx == "manager":
+                mp    = self.__class__.manager_plugin
+                cfg_  = self.__class__.cfg or configparser.ConfigParser()
+                ic    = self.__class__.index_cache
+                pm    = self.__class__.plugin_manager
+                sched = self.__class__.scheduler
+                if mp:
+                    mp.handle_manager(self, cfg_, pm, sched, ic)
+                else:
+                    _send_response(self, 503, b"ManagerPlugin not initialized", "text/plain")
+            else:
+                # manager以外のdefault_contextは従来通り302リダイレクト
+                _bp  = (cfg.get("server", "base_path", fallback="") if cfg else "").rstrip("/")
+                _qs  = urlparse(self.path).query
+                _qsuffix = f"?{_qs}" if _qs else ""
+                self.send_response(302)
+                self.send_header("Location", f"{_bp}/{default_ctx}/{_qsuffix}")
+                self.end_headers()
             return
 
         # BK-08: _serve_local_release() と /releases/ ルートを削除済み（G-16）
@@ -2945,12 +2991,6 @@ class FreeBoxHandler(BaseHTTPRequestHandler):
             _send_response(self, 500, b"500 Internal Server Error", "text/plain")
 
     # BK-08: _serve_local_release() 削除済み（G-16。FTモック用ローカル配信は削除）
-
-    # ------------------------------------------------------------------
-    # FX-107: GET /favicon.ico
-    # ------------------------------------------------------------------
-
-    def _handle_favicon(self) -> None:
 
     _CONTENT_JSON = "application/json; charset=utf-8"
 

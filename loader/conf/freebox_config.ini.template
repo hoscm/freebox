@@ -19,6 +19,12 @@ port = 9009
 # 0.0.0.0   = 全インターフェース（直接アクセスを許可する場合）
 host = 127.0.0.1
 
+# Apache2 Proxy のベースパス
+# Apache の ProxyPass で /freebox/ を転送している場合は /freebox を指定
+# リダイレクトURLや JS 内の API パスに自動付加されます
+# 例: /freebox → /freebox/manager/ , fetch('/freebox/api/...')
+base_path = /freebox
+
 
 [loader]
 
@@ -48,7 +54,13 @@ notify_url =
 # 複数のfreeBoxを運用する場合の識別に使用します
 notify_component = freebox
 
-# NASマウントポイント（GET /api/status のNAS積算チェック用）
+# hsBox トップページのベースURL（現在未使用・将来拡張用）
+# G-31: topnavリンクはリクエストのHostヘッダから相対パスで自動生成するため、
+# このパラメータは現在参照されません。将来の設定UIのために項目を残します。
+hsbox_top_url =
+
+# hsBox SP（スマートフォン向け）ページのベースURL（現在未使用・将来拡張用）
+hsbox_sp_url =
 # is_nas_available() がこのパスを os.path.ismount() + os.access(W_OK) で確認します
 # hsBoxのNASマウントパスに合わせて変更してください
 nas_mount_point = /mnt/nas

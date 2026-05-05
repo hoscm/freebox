@@ -91,6 +91,7 @@ LOADER_REQUIRED_FILES = [
     "server/box_webserver.py",
     "server/merge_config.py",
     "www/index.php",     # run.sh が /home/hsbox/www/freebox/index.php へコピーする
+    "www/version.txt",   # hs_update.sh が tvs2 として参照（5行形式・G-28 確定）
 ]
 
 # ---------------------------------------------------------------------------

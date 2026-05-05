@@ -28,17 +28,25 @@ mkdir -p "${FREEBOX_DIR}/plugins"
 mkdir -p "${FREEBOX_DIR}/data"
 mkdir -p "${WWW_DIR}"
 
+# data/ は freebox.service が User=hsbox で書き込むため hsbox 所有が必要
+# run.sh は root 権限で実行されるため、ここで所有者を修正する
+chown hsbox:hsbox "${FREEBOX_DIR}/plugins"
+chown hsbox:hsbox "${FREEBOX_DIR}/data"
+chmod 755 "${FREEBOX_DIR}/data"
+
 # --------------------------------------------------
 # 3. サーバーファイル配置（平坦化コピー）
 # --------------------------------------------------
 echo "[freeBox] サーバーファイルを配置..."
 cp -f "${ZTMP}/server/box_webserver.py" "${FREEBOX_DIR}/box_webserver.py"
+cp -f "${ZTMP}/server/merge_config.py"  "${FREEBOX_DIR}/merge_config.py"
 
 # パーミッション設定
 chmod 755 "${FREEBOX_DIR}"
 chmod 755 "${FREEBOX_DIR}/plugins"
 chmod 755 "${FREEBOX_DIR}/data"
 chmod 644 "${FREEBOX_DIR}/box_webserver.py"
+chmod 644 "${FREEBOX_DIR}/merge_config.py"
 
 # --------------------------------------------------
 # 4. 設定ファイル処理
@@ -46,12 +54,12 @@ chmod 644 "${FREEBOX_DIR}/box_webserver.py"
 echo "[freeBox] 設定ファイルを処理..."
 if [ ! -f "${CONFIG_INI}" ]; then
     echo "[freeBox] freebox_config.ini が存在しないためテンプレートをコピー"
-    cp -f "${ZTMP}/freebox_config.ini.template" "${CONFIG_INI}"
+    cp -f "${ZTMP}/conf/freebox_config.ini.template" "${CONFIG_INI}"
 else
     echo "[freeBox] freebox_config.ini が存在するため差分マージを実行"
-    python3 "${ZTMP}/merge_config.py" \
+    python3 "${FREEBOX_DIR}/merge_config.py" \
         "${CONFIG_INI}" \
-        "${ZTMP}/freebox_config.ini.template"
+        "${ZTMP}/conf/freebox_config.ini.template"
 fi
 # [SEC] 機密情報（notify_url等）を含む設定ファイルは640（other読み取り不可）
 chmod 640 "${CONFIG_INI}"
@@ -61,7 +69,7 @@ chown hsbox:hsbox "${CONFIG_INI}" 2>/dev/null || true  # 既にhsboxオーナー
 # 5. Apache設定
 # --------------------------------------------------
 echo "[freeBox] Apache設定を配置..."
-cp -f "${ZTMP}/freebox.conf" "${APACHE_CONF_DIR}/freebox.conf"
+cp -f "${ZTMP}/conf/freebox.conf" "${APACHE_CONF_DIR}/freebox.conf"
 
 echo "[freeBox] 必要な Apache モジュールを有効化..."
 a2enmod proxy proxy_http headers || true
@@ -78,14 +86,16 @@ fi
 # 6. hsBox UI連携ファイル配置
 # --------------------------------------------------
 echo "[freeBox] hsBox UI連携ファイルを配置..."
-cp -f "${ZTMP}/www/index.php" "${WWW_DIR}/index.php"
+cp -f "${ZTMP}/www/index.php"   "${WWW_DIR}/index.php"
+cp -f "${ZTMP}/www/version.txt" "${WWW_DIR}/version.txt"
 chmod 644 "${WWW_DIR}/index.php"
+chmod 644 "${WWW_DIR}/version.txt"
 
 # --------------------------------------------------
 # 7. systemdサービス登録
 # --------------------------------------------------
 echo "[freeBox] systemdサービスを登録..."
-cp -f "${ZTMP}/freebox.service" "${SYSTEMD_DIR}/freebox.service"
+cp -f "${ZTMP}/conf/freebox.service" "${SYSTEMD_DIR}/freebox.service"
 systemctl daemon-reload
 systemctl enable freebox
 systemctl start freebox
@@ -97,3 +107,26 @@ find "${FREEBOX_DIR}/plugins" -maxdepth 2 -name '*_config.ini' | while read ini_
 done
 
 echo "[freeBox] インストール完了"
+
+# --------------------------------------------------
+# 8. タブリスト更新
+# --------------------------------------------------
+echo "[freeBox] タブリストを更新..."
+tmppathset=`sudo cat /cdrom/hsbox/config.txt | tr -d '\r'| tr -d ' '`
+## upgrade version check-----
+hsbox=hsbox
+grep "tab_title="  /home/${hsbox}/www/*/index.php|sed  "s/\//\'/g"|cut -d "'" -f 5,7 > ${tmppathset}tablist.txt
+echo "[freeBox] tablist.txt 更新完了"
+
+# --------------------------------------------------
+# 9. 待機してシャットダウン
+# --------------------------------------------------
+echo "[freeBox] 10秒後にシャットダウンします..."
+sleep 10
+shutdown -h now
+sudo shutdown -h now
+sleep 60
+sudo systemctl poweroff --force 
+sleep 60
+sudo systemctl poweroff --force --force
+
