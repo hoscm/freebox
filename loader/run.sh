@@ -123,10 +123,7 @@ echo "[freeBox] tablist.txt 更新完了"
 # --------------------------------------------------
 echo "[freeBox] 10秒後にシャットダウンします..."
 sleep 10
-shutdown -h now
-sudo shutdown -h now
-sleep 60
-sudo systemctl poweroff --force 
-sleep 60
-sudo systemctl poweroff --force --force
+
+sync
+sudo shutdown -h now;sleep 60;sudo systemctl poweroff --force --force
 

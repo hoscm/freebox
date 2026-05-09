@@ -18,7 +18,10 @@
   └── version.txt      ← バージョン情報ファイル（必須）
 ```
 
-**freeBox Loader 本体の .hbx（freebox-base.hbx）構造:**
+**（参考）freeBox Loader 本体の .hbx（freebox-base.hbx）構造:**
+
+> ※ 以下は freeBox Loader 開発者向けの参考情報です。サードパーティ Plugin
+> 開発では使用しません。
 
 ```
 freebox-base.hbx（ZIPファイル）
@@ -107,7 +110,10 @@ atomcam2
 
 ---
 
-## 4. freeBox Loader 本体のビルド（loader モード）
+## 4. （参考）freeBox Loader 本体のビルド（loader モード）
+
+> ※ 本章は freeBox Loader 開発者向けの参考情報です。サードパーティ Plugin
+> 開発では使用しません。サードパーティ開発者は §3 / §5〜§7 / §8 / §9 を参照してください。
 
 ### 4-1. ビルドの実行
 
@@ -229,12 +235,35 @@ class Plugin:
 | `id` | ✅ | モジュール ID。`^[a-z0-9][a-z0-9\-]*[a-z0-9]$` に準拠 |
 | `name` | ✅ | UI 表示名 |
 | `description` | ✅ | UI 説明文 |
-| `status` | ✅ | `public` / `restricted`（`private` は書けない） |
-| `version` | ✅ | UI 表示用バージョン番号（semver 推奨） |
+| `status` | ✅ | `public` / `restricted`（公式 GitHub リポジトリ配布時）。<br>開発者の自前テスト用 `index.json` では `private` も使用可（表直後の補足参照） |
+| `version` | ✅ | UI 表示用バージョン番号（semver 推奨）。詳細は表直後の「バージョン番号の運用について」を参照 |
 | `release_tag` | ✅ | GitHub Release のタグ名（`version` と異なってもよい） |
 | `author` | ✅ | 作成者名 |
 | `repository` | ✅ | `.hbx` を配置した GitHub リポジトリのベース URL |
 | `plugin_file` | ✅ | プラグインファイル名（ファイル名のみ・相対パス禁止） |
+
+**`status` の値について（開発者向け補足）:**
+
+- 公式 GitHub リポジトリで配布する `index.json` には `public` または `restricted`
+  を使用します（`private` は書きません）
+- `private` は、開発者が **自前環境に配置した `index.json` でのテスト用途** に
+  使用できる値です
+  - 動作は `restricted` とほぼ同じですが、UI の警告レベルがやや厳しめになります
+  - 実装テスト用途に限定して使用してください
+
+**バージョン番号の運用について（開発者向け）:**
+
+`<version>` のフォーマットチェックは緩めに設計されており、開発者が一定の自由度で
+バージョン番号フォーマットを採用できます（例: `1.0.0`, `1.01.02` 等）。
+
+その代わり、以下の点に注意してください：
+
+- バージョン番号は freeBox Loader 内部で **パッチの適用可否判断・管理に使用** されます
+- バージョンの新旧は **文字列の大小比較** で判定されます（数値比較ではありません）
+- そのため、開発者自身が **一貫したバージョン番号フォーマットを定めて管理する責任** を負います
+
+**推奨**: semver 形式（X.Y.Z）または X.YY.ZZ 形式など、文字列ソートで正しく
+新旧判定される桁数固定のフォーマットを用いてください。
 
 **hbx ダウンロード URL の構築規則:**
 
@@ -296,7 +325,10 @@ Built: /tmp/testplugin.hbx
 ['testplugin.py', 'version.txt']
 ```
 
-### freeBox Loader 本体のビルド確認
+### （参考）freeBox Loader 本体のビルド確認
+
+> ※ 以下は freeBox Loader 開発者向けの参考情報です。サードパーティ Plugin
+> 開発では使用しません。
 
 ```bash
 # freebox/ リポジトリの親ディレクトリで実行
@@ -323,10 +355,10 @@ python -c "import zipfile; zf=zipfile.ZipFile('freebox-base.hbx'); print(sorted(
 | `Error: Plugin file not found` | 指定した .py ファイルが存在しない | ファイルパスを確認する |
 | `Error: Missing required file` (loader モード) | 必須ファイルが `loader/` 内に見つからない | §4-2 の必須ファイル一覧を確認する |
 | `invalid_version_txt`（Loader側エラー） | `version.txt` の1行目が不正な ID | ビルド時の `module_id` を確認する |
-| `download_failed`（Loader側エラー） | GitHub Release タグ名が `release_tag` と不一致 | `index.json` の `release_tag` と GitHub Release のタグ名を一致させる |
+| `download_failed`（Loader側エラー） | 以下のいずれか：<br>・GitHub Release タグ名が `release_tag` と不一致<br>・Release アセットに `.hbx` ファイルが添付されていない<br>・ネットワーク到達不可（DNS / プロキシ / オフライン環境）<br>・GitHub 側の権限制約（Private リポジトリへの未認証アクセス等）<br>・`{repository}/releases/download/{release_tag}/{id}.hbx` の URL 構築結果と実際のダウンロード URL が不一致 | `index.json` の `repository` / `release_tag` / `id` を順に検証し、`{repository}/releases/download/{release_tag}/{id}.hbx` を直接ブラウザで開いて到達可否を確認する |
 | `already_installed`（Loader側エラー） | 同一 ID のモジュールがインストール済み | Manager UI から Remove した後に再 Deploy する |
 | `invalid_hbx_format`（Loader側エラー） | `.hbx` に Plugin ファイルが含まれていない | `module_id` と `plugin_file` のファイル名が一致しているか確認 |
 
 ---
 
-*本ドキュメントは freeBox Loader v1.0.0 に基づきます。*
+*本ドキュメントは freeBox Loader v1.0.2 に基づきます。*
